@@ -1,6 +1,6 @@
 [build]
-compiler = "g++"
-target = "example"
+compiler = "clang++"
+target = "main"
 
 [paths]
 src = "src"
@@ -8,6 +8,6 @@ include = "include"
 build = "build"
 
 [compiler]
-flags = ["-Wall", "-std=c++20"]
+flags = ["-Wall", "-std=c++20", "-O3"]
 definitions = { VERSION = "0.1.0" }
 warnings_as_errors = true

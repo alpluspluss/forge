@@ -154,12 +154,12 @@ warnings_as_errors = true  # treat warnings as errors
 ### Workspace Section
 ```toml
 [workspace]
-members = [          # List of workspace members
+members = [          # list of workspace members
     "lib1",
     "lib2",
     "app"
 ]
-exclude = [          # Paths to exclude
+exclude = [          # paths to exclude
     "examples",
     "tests"
 ]

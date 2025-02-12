@@ -1,0 +1,135 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: forge
+            asset_name: forge-linux-x86_64
+            cross: false
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: forge
+            asset_name: forge-linux-aarch64
+            cross: true
+
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: forge.exe
+            asset_name: forge-windows-x86_64.exe
+            cross: false
+
+          # Windows (aarch64)
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact_name: forge.exe
+            asset_name: forge-windows-arm64.exe
+            cross: true
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: forge
+            asset_name: forge-macos-x86_64
+            cross: false
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: forge
+            asset_name: forge-macos-arm64
+            cross: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          case ${{ matrix.target }} in
+            aarch64-unknown-linux-gnu)
+              sudo apt-get update
+              sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+              ;;
+          esac
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }}
+          use-cross: ${{ matrix.cross }}
+
+      - name: Generate SHA256
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
+
+  create_release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for artifact in forge-*; do
+            if [ -f "$artifact/$artifact" ]; then
+              gh release upload ${{ github.ref_name }} "$artifact/$artifact"
+              gh release upload ${{ github.ref_name }} "$artifact/$artifact.sha256"
+            elif [ -f "$artifact/$artifact.exe" ]; then
+              gh release upload ${{ github.ref_name }} "$artifact/$artifact.exe"
+              gh release upload ${{ github.ref_name }} "$artifact/$artifact.exe.sha256"
+            fi
+          done
+
+  cleanup:
+    name: Cleanup Artifacts
+    needs: create_release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            forge-*
