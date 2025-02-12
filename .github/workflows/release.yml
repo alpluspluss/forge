@@ -89,16 +89,29 @@ jobs:
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
 
   create_release:
-    name: Create Artifacts
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
 
-      - name: List Downloaded Artifacts
-        run: |
-          ls -R
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            forge-linux-x86_64/forge-linux-x86_64
+            forge-linux-x86_64/forge-linux-x86_64.sha256
+            forge-linux-aarch64/forge-linux-aarch64
+            forge-linux-aarch64/forge-linux-aarch64.sha256
+            forge-windows-x86_64.exe/forge-windows-x86_64.exe
+            forge-windows-x86_64.exe/forge-windows-x86_64.exe.sha256
+            forge-macos-x86_64/forge-macos-x86_64
+            forge-macos-x86_64/forge-macos-x86_64.sha256
+            forge-macos-arm64/forge-macos-arm64
+            forge-macos-arm64/forge-macos-arm64.sha256
 
   cleanup:
     name: Cleanup Artifacts
