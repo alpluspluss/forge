@@ -1,0 +1,12 @@
+[package]
+name = "forge"
+edition = "2021"
+
+[dependencies]
+rayon = "1.10.0"
+sha2 = "0.10.8"
+walkdir = "2.5.0"
+serde = { version = "1.0.217", features = ["derive"] }
+toml = "0.8.20"
+regex = "1.11.1"
+structopt = "0.3.26"
