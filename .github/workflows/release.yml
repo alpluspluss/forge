@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    tags:
+    branches:
       - 'v*'
 
 jobs:
@@ -30,13 +30,6 @@ jobs:
             artifact_name: forge.exe
             asset_name: forge-windows-x86_64.exe
             cross: false
-
-          # Windows (aarch64)
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            artifact_name: forge.exe
-            asset_name: forge-windows-arm64.exe
-            cross: true
 
           - os: macos-latest
             target: x86_64-apple-darwin
@@ -81,7 +74,11 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            shasum -a 256 ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
+          else
+            sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
+          fi
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
@@ -92,37 +89,16 @@ jobs:
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
 
   create_release:
-    name: Create Release
+    name: Create Artifacts
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
 
-      - name: Upload Release Assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: List Downloaded Artifacts
         run: |
-          for artifact in forge-*; do
-            if [ -f "$artifact/$artifact" ]; then
-              gh release upload ${{ github.ref_name }} "$artifact/$artifact"
-              gh release upload ${{ github.ref_name }} "$artifact/$artifact.sha256"
-            elif [ -f "$artifact/$artifact.exe" ]; then
-              gh release upload ${{ github.ref_name }} "$artifact/$artifact.exe"
-              gh release upload ${{ github.ref_name }} "$artifact/$artifact.exe.sha256"
-            fi
-          done
+          ls -R
 
   cleanup:
     name: Cleanup Artifacts
