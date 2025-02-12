@@ -6,8 +6,30 @@ on:
       - 'v*'
 
 jobs:
+  create_release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Extract Version
+        id: get_version
+        run: |
+          # Extract version from branch name
+          VERSION=$(echo "${{ github.ref_name }}" | sed -e 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag ${{ steps.get_version.outputs.tag }}
+          git push origin ${{ steps.get_version.outputs.tag }}
+
   build:
     name: Build (${{ matrix.target }})
+    needs: create_release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -88,8 +110,8 @@ jobs:
             target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
 
-  create_release:
-    name: Create GitHub Release
+  publish_release:
+    name: Publish Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -112,10 +134,11 @@ jobs:
             forge-macos-x86_64/forge-macos-x86_64.sha256
             forge-macos-arm64/forge-macos-arm64
             forge-macos-arm64/forge-macos-arm64.sha256
+          tag_name: ${{ github.ref_name }}
 
   cleanup:
     name: Cleanup Artifacts
-    needs: create_release
+    needs: publish_release
     runs-on: ubuntu-latest
     steps:
       - uses: geekyeggo/delete-artifact@v5
