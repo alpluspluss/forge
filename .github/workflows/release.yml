@@ -3,7 +3,7 @@ name: release
 on:
   push:
     branches:
-      - 'v*'
+      - 'release/v*'
 
 jobs:
   build:
@@ -98,13 +98,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^release\///')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Create Tag
         run: |
-          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git tag v$VERSION
-          git push origin v$VERSION
+          git tag ${{ steps.version.outputs.version }}
+          git push origin ${{ steps.version.outputs.version }}
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -123,7 +128,7 @@ jobs:
             forge-macos-x86_64/forge-macos-x86_64.sha256
             forge-macos-arm64/forge-macos-arm64
             forge-macos-arm64/forge-macos-arm64.sha256
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
     name: Cleanup Artifacts
