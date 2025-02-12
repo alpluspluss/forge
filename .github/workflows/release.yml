@@ -114,20 +114,15 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
 
+      - name: List Artifacts
+        run: ls -R
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            forge-linux-x86_64/forge-linux-x86_64
-            forge-linux-x86_64/forge-linux-x86_64.sha256
-            forge-linux-aarch64/forge-linux-aarch64
-            forge-linux-aarch64/forge-linux-aarch64.sha256
-            forge-windows-x86_64.exe/forge-windows-x86_64.exe
-            forge-windows-x86_64.exe/forge-windows-x86_64.exe.sha256
-            forge-macos-x86_64/forge-macos-x86_64
-            forge-macos-x86_64/forge-macos-x86_64.sha256
-            forge-macos-arm64/forge-macos-arm64
-            forge-macos-arm64/forge-macos-arm64.sha256
+            */*.zip
+            */*.sha256
           tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
