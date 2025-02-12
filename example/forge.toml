@@ -1,0 +1,13 @@
+[build]
+compiler = "g++"
+target = "example"
+
+[paths]
+src = "src"
+include = "include"
+build = "build"
+
+[compiler]
+flags = ["-Wall", "-std=c++20"]
+definitions = { VERSION = "0.1.0" }
+warnings_as_errors = true
