@@ -3,7 +3,7 @@ name: release
 on:
   push:
     branches:
-      - 'v*'
+      - 'release/v*'
 
 jobs:
   build:
@@ -80,25 +80,68 @@ jobs:
             sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
           fi
 
+      - name: Create ZIP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          New-Item -ItemType Directory -Force -Path package
+          Copy-Item ${{ matrix.artifact_name }} -Destination "package/${{ matrix.asset_name }}"
+          Copy-Item "${{ matrix.asset_name }}.sha256" -Destination package/
+          Compress-Archive -Path package/* -DestinationPath "${{ matrix.asset_name }}.zip" -Force
+
+      - name: Create ZIP (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          mkdir -p package
+          cp ${{ matrix.artifact_name }} package/${{ matrix.asset_name }}
+          cp ${{ matrix.asset_name }}.sha256 package/
+          cd package
+          zip -r ../${{ matrix.asset_name }}.zip ./*
+
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: |
-            target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
+          path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
 
   create_release:
-    name: Create Artifacts
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^release\///')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Tag
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag -f ${{ steps.version.outputs.version }}
+          git push -f origin ${{ steps.version.outputs.version }}
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
 
-      - name: List Downloaded Artifacts
-        run: |
-          ls -R
+      - name: List Artifacts
+        run: ls -R
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            **/*.zip
+          tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
     name: Cleanup Artifacts
