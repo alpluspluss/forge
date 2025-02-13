@@ -1,7 +1,8 @@
 #include <iostream>
-#include "example.hpp"
+#include <hello/hello.hpp>
 
-int main() {
+int main()
+{
     std::cout << "Hello from Forge!" << std::endl;
     return 0;
 }
