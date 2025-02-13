@@ -1,0 +1,48 @@
+# Forge specific
+.forge_cache/
+build/
+*.cache
+
+# C & C++ specific
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.exe
+*.out
+*.app
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build system generated
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+.ninja_deps
+.ninja_log
+
+# Dependency directories
+third_party/
+ext/
+deps/
+vendor/
+
+# Debug files
+*.dSYM/
+*.pdb
+*.idb
+
+# Project specific
+*~
+*.log
+core.*
+.gdb_history

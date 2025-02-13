@@ -28,7 +28,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: forge.exe
-            asset_name: forge-windows-x86_64.exe
+            asset_name: forge-windows-x86_64
             cross: false
 
           - os: macos-latest

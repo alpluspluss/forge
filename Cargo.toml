@@ -1,7 +1,9 @@
 [package]
 name = "forge"
 edition = "2021"
-version = "0.1.0"
+version = "0.2.0"
+authors = ["alpluspluss"]
+description = "A fast, modern C & C++ build system"
 
 [dependencies]
 rayon = "1.10.0"
@@ -12,3 +14,6 @@ toml = "0.8.20"
 regex = "1.11.1"
 structopt = "0.3.26"
 serde_json = "1.0.138"
+thiserror = "2.0.11"
+log = "0.4.25"
+env_logger = "0.11.6"
