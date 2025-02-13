@@ -121,12 +121,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            forge-linux-aarch64/forge
-            forge-linux-x86_64/forge
-            forge-macos-arm64/forge
-            forge-macos-x86_64/forge
-            forge-windows-x86_64.exe/forge.exe
-            */*.sha256
+            forge-linux-aarch64/forge => forge-linux-aarch64
+            forge-linux-x86_64/forge => forge-linux-x86_64
+            forge-macos-arm64/forge => forge-macos-arm64 
+            forge-macos-x86_64/forge => forge-macos-x86_64
+            forge-windows-x86_64.exe/forge.exe => forge-windows-x86_64.exe
+            **/*.sha256
           tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
