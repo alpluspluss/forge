@@ -108,6 +108,7 @@ impl Config {
         let mut config: Config = toml::from_str(&content)
             .map_err(|e| ForgeError::Config(format!("Failed to parse config: {}", e)))?;
 
+        /* our default!!! */
         if !config.profiles.contains_key(&config.build.default_profile) {
             config.profiles.insert(
                 config.build.default_profile.clone(),
@@ -119,7 +120,6 @@ impl Config {
                 },
             );
         }
-
         Ok(config)
     }
 
@@ -145,6 +145,7 @@ impl Config {
                 jobs: None,
                 default_profile: "debug".to_string(),
             },
+          
             paths: PathConfig::default(),
             compiler: CompilerConfig {
                 flags: vec!["-Wall".to_string(), "-std=c++17".to_string()],

@@ -62,11 +62,9 @@ impl Builder {
         let start = Instant::now();
         info!("Starting build process");
 
-        // Load build cache
         debug!("Loading build cache");
         self.cache.lock().unwrap().load()?;
 
-        // Get build order based on dependencies
         let build_order = self.workspace.get_build_order()?;
         let filtered: Vec<_> = build_order.into_iter()
             .filter(|m| members.is_empty() || members.iter().any(|member| member.name == m.name))
@@ -74,12 +72,10 @@ impl Builder {
 
         debug!("Build order: {:?}", filtered.iter().map(|m| &m.name).collect::<Vec<_>>());
 
-        // Build each member
         for member in filtered {
             self.build_member(member)?;
         }
 
-        // Save cache
         debug!("Saving build cache");
         self.cache.lock().unwrap().save()?;
 
@@ -114,7 +110,6 @@ impl Builder {
             .chain(profile_config.extra_flags.iter())
             .cloned()
             .collect();
-
         let total_files = sources.len();
         let completed_files = Arc::new(AtomicUsize::new(0));
 
