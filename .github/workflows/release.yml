@@ -80,23 +80,26 @@ jobs:
             sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
           fi
 
-      - name: Create ZIP
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
+      - name: Create ZIP (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          ${{ runner.os == 'Windows' && '
           cd target/${{ matrix.target }}/release
           New-Item -ItemType Directory -Force -Path package
           Copy-Item ${{ matrix.artifact_name }} -Destination "package/${{ matrix.asset_name }}"
           Copy-Item "${{ matrix.asset_name }}.sha256" -Destination package/
           Compress-Archive -Path package/* -DestinationPath "${{ matrix.asset_name }}.zip" -Force
-          ' || '
+
+      - name: Create ZIP (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
           cd target/${{ matrix.target }}/release
           mkdir -p package
           cp ${{ matrix.artifact_name }} package/${{ matrix.asset_name }}
           cp ${{ matrix.asset_name }}.sha256 package/
           cd package
           zip -r ../${{ matrix.asset_name }}.zip ./*
-          ' }}
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
