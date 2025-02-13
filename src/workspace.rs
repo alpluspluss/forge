@@ -21,7 +21,7 @@ pub struct WorkspaceMember {
     pub path: PathBuf,
     pub config: Config,
     pub selected_profile: Option<String>,
-    pub workspace_root: PathBuf
+    pub workspace_root: PathBuf,
 }
 
 impl Workspace {
@@ -87,7 +87,6 @@ impl Workspace {
         }
     }
 
-    /* visitor pattern */
     pub fn get_build_order(&self) -> ForgeResult<Vec<&WorkspaceMember>> {
         let mut visited = HashSet::new();
         let mut order = Vec::new();

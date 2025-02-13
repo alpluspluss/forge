@@ -14,6 +14,8 @@ pub struct Config {
     pub cross: Option<CrossConfig>,
     #[serde(default)]
     pub profiles: HashMap<String, BuildProfile>,
+    #[serde(default)]
+    pub testing: Option<TestConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -78,6 +80,20 @@ pub struct BuildProfile {
     pub extra_flags: Vec<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TestConfig {
+    #[serde(default = "default_test_patterns")]
+    pub patterns: Vec<String>,
+    pub test_dir: Option<String>,
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    #[serde(default)]
+    pub flags: Vec<String>,
+    #[serde(default)]
+    pub libs: Vec<String>,
+    pub main: Option<String>,
+}
+
 fn default_profile() -> String {
     "debug".to_string()
 }
@@ -88,6 +104,10 @@ fn default_include_paths() -> Vec<String> {
 
 fn default_build_path() -> String {
     "build".to_string()
+}
+
+fn default_test_patterns() -> Vec<String> {
+    vec!["*_test.cpp".to_string(), "test_*.cpp".to_string()]
 }
 
 impl Default for PathConfig {
@@ -108,7 +128,6 @@ impl Config {
         let mut config: Config = toml::from_str(&content)
             .map_err(|e| ForgeError::Config(format!("Failed to parse config: {}", e)))?;
 
-        /* our default!!! */
         if !config.profiles.contains_key(&config.build.default_profile) {
             config.profiles.insert(
                 config.build.default_profile.clone(),
@@ -120,32 +139,18 @@ impl Config {
                 },
             );
         }
+
         Ok(config)
     }
 
     pub fn default_for_member(name: &str) -> Self {
-        let mut profiles = HashMap::new();
-        profiles.insert("debug".to_string(), BuildProfile {
-            opt_level: "0".to_string(),
-            debug_info: true,
-            lto: false,
-            extra_flags: vec![],
-        });
-        profiles.insert("release".to_string(), BuildProfile {
-            opt_level: "3".to_string(),
-            debug_info: false,
-            lto: true,
-            extra_flags: vec!["-march=native".to_string()],
-        });
-
-        Self {
+        let mut config = Config {
             build: BuildConfig {
                 compiler: "g++".to_string(),
                 target: name.to_string(),
                 jobs: None,
                 default_profile: "debug".to_string(),
             },
-          
             paths: PathConfig::default(),
             compiler: CompilerConfig {
                 flags: vec!["-Wall".to_string(), "-std=c++17".to_string()],
@@ -156,8 +161,31 @@ impl Config {
             },
             workspace: WorkspaceConfig::default(),
             cross: None,
-            profiles,
-        }
+            profiles: HashMap::new(),
+            testing: Some(TestConfig {
+                patterns: default_test_patterns(),
+                test_dir: None,
+                exclude: vec![],
+                flags: vec![],
+                libs: vec![],
+                main: None,
+            }),
+        };
+
+        config.profiles.insert("debug".to_string(), BuildProfile {
+            opt_level: "0".to_string(),
+            debug_info: true,
+            lto: false,
+            extra_flags: vec![],
+        });
+        config.profiles.insert("release".to_string(), BuildProfile {
+            opt_level: "3".to_string(),
+            debug_info: false,
+            lto: true,
+            extra_flags: vec!["-march=native".to_string()],
+        });
+
+        config
     }
 
     pub fn get_profile(&self, name: Option<&str>) -> Option<&BuildProfile> {
