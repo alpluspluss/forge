@@ -12,6 +12,7 @@ pub struct Workspace {
     pub root_path: PathBuf,
     pub root_config: Config,
     pub members: Vec<WorkspaceMember>,
+    pub selected_profile: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,8 @@ pub struct WorkspaceMember {
     pub name: String,
     pub path: PathBuf,
     pub config: Config,
+    pub selected_profile: Option<String>,
+    pub workspace_root: PathBuf
 }
 
 impl Workspace {
@@ -31,6 +34,8 @@ impl Workspace {
                 name: "root".to_string(),
                 path: root_path.to_path_buf(),
                 config: root_config.clone(),
+                selected_profile: None,
+                workspace_root: root_path.to_path_buf()
             });
         }
 
@@ -51,6 +56,8 @@ impl Workspace {
                 name: member_name.clone(),
                 path: member_path,
                 config,
+                selected_profile: None,
+                workspace_root: root_path.to_path_buf()
             });
         }
 
@@ -58,7 +65,15 @@ impl Workspace {
             root_path: root_path.to_path_buf(),
             root_config,
             members,
+            selected_profile: None,
         })
+    }
+
+    pub fn set_profile(&mut self, profile: Option<String>) {
+        self.selected_profile = profile.clone();
+        for member in &mut self.members {
+            member.selected_profile = profile.clone();
+        }
     }
 
     pub fn filter_members(&self, filter: &[String]) -> Vec<&WorkspaceMember> {
@@ -101,7 +116,6 @@ impl Workspace {
             }
         }
 
-        // Convert names back to member references
         Ok(order)
     }
 
@@ -113,7 +127,6 @@ impl Workspace {
         temp_visited: &mut HashSet<String>,
         order: &mut Vec<&'a WorkspaceMember>,
     ) -> ForgeResult<()> {
-        // Check for cycles
         if temp_visited.contains(&member.name) {
             return Err(ForgeError::Workspace(format!(
                 "Circular dependency detected involving {}",
@@ -127,7 +140,6 @@ impl Workspace {
 
         temp_visited.insert(member.name.clone());
 
-        // Visit dependencies first
         if let Some(deps) = graph.get(&member.name) {
             for dep_name in deps {
                 let dep = self.members
@@ -163,7 +175,7 @@ impl WorkspaceMember {
     }
 
     pub fn get_build_dir(&self) -> PathBuf {
-        self.path.join(&self.config.paths.build)
+        self.workspace_root.join(&self.config.paths.build).join(&self.name)
     }
 
     pub fn get_target_path(&self) -> PathBuf {
@@ -173,9 +185,9 @@ impl WorkspaceMember {
             path = path.join(&cross.target);
         }
 
-        if let Some(profile) = self.config.get_profile(None) {
-            path = path.join(if profile.debug_info { "debug" } else { "release" });
-        }
+        let profile = self.selected_profile.as_deref()
+            .unwrap_or(&self.config.build.default_profile);
+        path = path.join(profile);
 
         path.join(&self.config.build.target)
     }

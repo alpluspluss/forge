@@ -17,6 +17,7 @@ use crate::{
     workspace::Workspace,
     error::ForgeResult,
 };
+use crate::error::ForgeError;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "forge", about = "A fast C/C++ build system with cross-compilation support")]
@@ -71,6 +72,24 @@ enum Forge {
         #[structopt(long, help = "Specific workspace members to clean")]
         members: Vec<String>,
     },
+
+    #[structopt(name = "run", about = "Build and run the project")]
+    Run {
+        #[structopt(long, parse(from_os_str), help = "Path to workspace or project")]
+        path: Option<PathBuf>,
+
+        #[structopt(long, help = "Specific workspace member to run")]
+        member: Option<String>,
+
+        #[structopt(long = "release", help = "Run with release profile")]
+        release: bool,
+
+        #[structopt(long = "profile", help = "Build profile (debug/release)")]
+        profile: Option<String>,
+
+        #[structopt(name = "args", last = true)]
+        args: Vec<String>,
+    }
 }
 
 fn init_project(
@@ -211,6 +230,66 @@ public:
     Ok(())
 }
 
+fn run_project(
+    path: Option<PathBuf>,
+    member: Option<String>,
+    args: Vec<String>,
+    profile: Option<String>,
+    release: bool,
+) -> ForgeResult<()> {
+    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap());
+    let profile = if release {
+        Some("release".to_string())
+    } else {
+        profile
+    };
+
+    // First build the project
+    let workspace = Workspace::new(&path)?;
+    let builder = Builder::new(
+        workspace.clone(),
+        None,
+        None,
+        None,
+        profile.as_deref(),
+    );
+
+    let members = if let Some(member_name) = member {
+        workspace.filter_members(&[member_name])
+    } else if !workspace.root_config.build.target.is_empty() {
+        // If root has a target, run it by default
+        workspace.filter_members(&["root".to_string()])
+    } else if workspace.members.len() == 1 {
+        // If no root target but only one member, run that
+        workspace.filter_members(&[])
+    } else {
+        return Err(ForgeError::Workspace(
+            "Multiple workspace members found. Please specify which one to run using --member".to_string()
+        ));
+    };
+
+    if members.is_empty() {
+        return Err(ForgeError::Workspace("No matching workspace member found".to_string()));
+    }
+
+    builder.build(&members)?;
+
+    let target = &members[0].get_target_path();
+    let status = std::process::Command::new(target)
+        .args(args)
+        .status()
+        .map_err(|e| ForgeError::Build(format!("Failed to execute {}: {}", target.display(), e)))?;
+
+    if !status.success() {
+        return Err(ForgeError::Build(format!(
+            "Process exited with code {}",
+            status.code().unwrap_or(-1)
+        )));
+    }
+
+    Ok(())
+}
+
 fn main() {
     env_logger::init();
 
@@ -297,5 +376,12 @@ fn main() {
                 Err(_e) => (),
             }
         }
+
+        Forge::Run { path, member, args, profile, release } => {
+            if let Err(e) = run_project(path, member, args, profile, release) {
+                eprintln!("Run failed: {}", e);
+                std::process::exit(1);
+            }
+        },
     }
 }

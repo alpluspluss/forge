@@ -27,14 +27,14 @@ pub struct Builder {
 
 impl Builder {
     pub fn new(
-        workspace: Workspace,
+        mut workspace: Workspace,
         target_triple: Option<&str>,
         toolchain_path: Option<&str>,
         sysroot: Option<&Path>,
         profile: Option<&str>,
     ) -> Self {
         let mut cache = BuildCache::new(&workspace.root_path);
-        cache.set_quick_check(true); // Enable quick check by default
+        cache.set_quick_check(true);
 
         let toolchain = target_triple.map(|triple| {
             let target = Target::from_str(triple).expect("Invalid target triple");
@@ -46,12 +46,14 @@ impl Builder {
             ).expect("Failed to create toolchain")
         });
 
+        let selected_profile = profile.map(String::from);
+        workspace.set_profile(selected_profile.clone());
         Builder {
             workspace,
             compiler: Compiler::new(toolchain),
             cache: Arc::new(Mutex::new(cache)),
             target_triple: target_triple.map(String::from),
-            selected_profile: profile.map(String::from),
+            selected_profile,
             quick_check: true,
         }
     }
@@ -60,11 +62,9 @@ impl Builder {
         let start = Instant::now();
         info!("Starting build process");
 
-        // Load build cache
         debug!("Loading build cache");
         self.cache.lock().unwrap().load()?;
 
-        // Get build order based on dependencies
         let build_order = self.workspace.get_build_order()?;
         let filtered: Vec<_> = build_order.into_iter()
             .filter(|m| members.is_empty() || members.iter().any(|member| member.name == m.name))
@@ -72,12 +72,10 @@ impl Builder {
 
         debug!("Build order: {:?}", filtered.iter().map(|m| &m.name).collect::<Vec<_>>());
 
-        // Build each member
         for member in filtered {
             self.build_member(member)?;
         }
 
-        // Save cache
         debug!("Saving build cache");
         self.cache.lock().unwrap().save()?;
 
@@ -112,7 +110,6 @@ impl Builder {
             .chain(profile_config.extra_flags.iter())
             .cloned()
             .collect();
-
         let total_files = sources.len();
         let completed_files = Arc::new(AtomicUsize::new(0));
 

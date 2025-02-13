@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::fmt;
+use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use crate::error::{ForgeError, ForgeResult};
 
@@ -140,8 +141,8 @@ impl FromStr for Target {
     }
 }
 
-impl ToString for Target {
-    fn to_string(&self) -> String {
+impl Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let arch = match self.arch {
             Architecture::X86_64 => "x86_64",
             Architecture::X86 => "i686",
@@ -174,7 +175,7 @@ impl ToString for Target {
             Environment::Unknown => "-unknown",
         };
 
-        format!("{}-{}-{}{}", arch, vendor, os, env)
+        write!(f, "{}", format!("{}-{}-{}{}", arch, vendor, os, env))
     }
 }
 

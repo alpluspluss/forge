@@ -20,6 +20,7 @@ pub struct Config {
 pub struct BuildConfig {
     pub compiler: String,
     pub target: String,
+    #[serde(default)]
     pub jobs: Option<usize>,
     #[serde(default = "default_profile")]
     pub default_profile: String,
@@ -27,8 +28,11 @@ pub struct BuildConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PathConfig {
+    #[serde(default)]
     pub src: String,
+    #[serde(default = "default_include_paths")]
     pub include: Vec<String>,
+    #[serde(default = "default_build_path")]
     pub build: String,
 }
 
@@ -78,6 +82,24 @@ fn default_profile() -> String {
     "debug".to_string()
 }
 
+fn default_include_paths() -> Vec<String> {
+    vec!["include".to_string()]
+}
+
+fn default_build_path() -> String {
+    "build".to_string()
+}
+
+impl Default for PathConfig {
+    fn default() -> Self {
+        Self {
+            src: String::new(),
+            include: default_include_paths(),
+            build: default_build_path(),
+        }
+    }
+}
+
 impl Config {
     pub fn load(path: &Path) -> ForgeResult<Self> {
         let content = std::fs::read_to_string(path)
@@ -98,7 +120,6 @@ impl Config {
                 },
             );
         }
-
         Ok(config)
     }
 
@@ -124,11 +145,8 @@ impl Config {
                 jobs: None,
                 default_profile: "debug".to_string(),
             },
-            paths: PathConfig {
-                src: "src".to_string(),
-                include: vec!["include".to_string()],
-                build: "build".to_string(),
-            },
+          
+            paths: PathConfig::default(),
             compiler: CompilerConfig {
                 flags: vec!["-Wall".to_string(), "-std=c++17".to_string()],
                 definitions: HashMap::new(),
