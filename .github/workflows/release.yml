@@ -83,7 +83,7 @@ jobs:
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: ${{ matrix.asset_name }}
           path: |
             target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
@@ -121,9 +121,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            binaries/forge
-            binaries/forge.exe
-            binaries/*.sha256
+            forge-linux-aarch64/forge
+            forge-linux-x86_64/forge
+            forge-macos-arm64/forge
+            forge-macos-x86_64/forge
+            forge-windows-x86_64.exe/forge.exe
+            */*.sha256
           tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
