@@ -21,7 +21,7 @@ pub struct WorkspaceMember {
     pub path: PathBuf,
     pub config: Config,
     pub selected_profile: Option<String>,
-    pub workspace_root: PathBuf
+    pub workspace_root: PathBuf,
 }
 
 impl Workspace {

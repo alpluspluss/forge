@@ -14,6 +14,7 @@ use crate::{
     target::Target,
     toolchains::Toolchain,
     error::{ForgeError, ForgeResult},
+    config::TestConfig
 };
 
 pub struct Builder {
@@ -58,15 +59,184 @@ impl Builder {
         }
     }
 
+    pub fn build_tests(&self, member: &WorkspaceMember, test_config: &TestConfig) -> ForgeResult<()> {
+        let start = Instant::now();
+        info!("\nBuilding tests for {}", member.name);
+
+        let test_build_dir = member.get_build_dir().join("tests");
+        std::fs::create_dir_all(&test_build_dir)
+            .map_err(|e| ForgeError::Build(format!("Failed to create test build directory: {}", e)))?;
+
+        let test_sources = self.find_test_sources(member, test_config)?;
+        if test_sources.is_empty() {
+            info!("No test sources found");
+            return Ok(());
+        }
+        info!("Found {} test files", test_sources.len());
+
+        let mut all_sources = test_sources;
+        if let Some(main) = &test_config.main {
+            let main_path = member.path.join(main);
+            if main_path.exists() {
+                all_sources.push(main_path);
+            } else {
+                return Err(ForgeError::Build(format!("Test main file not found: {}", main)));
+            }
+        }
+
+        let target = self.target_triple.as_deref()
+            .or_else(|| member.config.cross.as_ref().map(|c| c.target.as_str()))
+            .unwrap_or("native");
+
+        let profile = self.selected_profile.as_deref()
+            .unwrap_or(&member.config.build.default_profile);
+
+        let profile_config = member.config.get_profile(Some(profile))
+            .ok_or_else(|| ForgeError::Build(format!("Profile not found: {}", profile)))?;
+
+        let mut compiler_flags = member.config.compiler.flags.clone();
+        compiler_flags.extend(profile_config.extra_flags.iter().cloned());
+        compiler_flags.extend(test_config.flags.iter().cloned());
+
+        let total_files = all_sources.len();
+        let completed_files = Arc::new(AtomicUsize::new(0));
+
+        let objects: Vec<PathBuf> = all_sources.par_iter()
+            .map(|source| {
+                let object = self.compiler.get_object_path(source, &test_build_dir);
+                let includes = self.compiler.get_includes(source, &member.get_include_dirs());
+
+                let needs_rebuild = {
+                    let cache = self.cache.lock().unwrap();
+                    cache.needs_rebuild(
+                        source,
+                        &object,
+                        &includes,
+                        &compiler_flags,
+                        target,
+                        profile
+                    )
+                };
+
+                if !needs_rebuild {
+                    debug!("Skipping {} (up to date)", source.display());
+                    let done = completed_files.fetch_add(1, Ordering::SeqCst) + 1;
+                    info!("Progress: [{}/{}]", done, total_files);
+                    return Ok(object);
+                }
+
+                debug!("Compiling {}", source.display());
+                let mut test_compiler_config = member.config.compiler.clone();
+                test_compiler_config.flags.extend(test_config.flags.iter().cloned());
+                test_compiler_config.libraries.extend(test_config.libs.iter().cloned());
+
+                self.compiler.compile(
+                    source,
+                    &object,
+                    &test_compiler_config,
+                    profile_config,
+                    &member.get_include_dirs(),
+                    &member.config.build.compiler,
+                )?;
+
+                {
+                    let mut cache = self.cache.lock().unwrap();
+                    cache.update(
+                        source,
+                        &includes,
+                        &compiler_flags,
+                        target,
+                        profile,
+                    )?;
+                }
+
+                let done = completed_files.fetch_add(1, Ordering::SeqCst) + 1;
+                info!("Progress: [{}/{}]", done, total_files);
+                Ok(object)
+            })
+            .collect::<ForgeResult<_>>()?;
+
+        if !objects.is_empty() {
+            let test_binary = member.get_build_dir().join("tests").join(&member.config.build.target);
+            info!("Linking {}", test_binary.display());
+
+            let mut test_compiler_config = member.config.compiler.clone();
+            test_compiler_config.libraries.extend(test_config.libs.iter().cloned());
+
+            self.compiler.link(
+                &objects,
+                &test_binary,
+                &test_compiler_config,
+                profile_config,
+                &member.config.build.compiler,
+            )?;
+        }
+
+        info!(
+            "Built tests for {} in {:.2}s",
+            member.name,
+            start.elapsed().as_secs_f32()
+        );
+        Ok(())
+    }
+
+    fn find_test_sources(&self, member: &WorkspaceMember, test_config: &TestConfig) -> ForgeResult<Vec<PathBuf>> {
+        let test_dir = if let Some(dir) = &test_config.test_dir {
+            member.path.join(dir)
+        } else {
+            member.get_source_dir()
+        };
+
+        if !test_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        fn matches_pattern(name: &str, pattern: &str) -> bool {
+            if pattern.starts_with("*") && pattern.ends_with("*") {
+                let inner = &pattern[1..pattern.len() - 1];
+                name.contains(inner)
+            } else if pattern.starts_with("*") {
+                let suffix = &pattern[1..];
+                name.ends_with(suffix)
+            } else if pattern.ends_with("*") {
+                let prefix = &pattern[..pattern.len() - 1];
+                name.starts_with(prefix)
+            } else {
+                name == pattern
+            }
+        }
+
+        let sources: Vec<_> = WalkDir::new(&test_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                if let Some(file_name) = e.path().file_name().and_then(|n| n.to_str()) {
+                    /* if matches any */
+                    let matches = test_config.patterns.iter()
+                        .any(|p| matches_pattern(file_name, p));
+
+                    /* if excluded */
+                    let excluded = test_config.exclude.iter()
+                        .any(|p| matches_pattern(file_name, p));
+
+                    matches && !excluded
+                } else {
+                    false
+                }
+            })
+            .map(|e| e.path().to_path_buf())
+            .collect();
+
+        Ok(sources)
+    }
+
     pub fn build(&self, members: &[&WorkspaceMember]) -> ForgeResult<()> {
         let start = Instant::now();
         info!("Starting build process");
 
-        // Load build cache
         debug!("Loading build cache");
         self.cache.lock().unwrap().load()?;
 
-        // Get build order based on dependencies
         let build_order = self.workspace.get_build_order()?;
         let filtered: Vec<_> = build_order.into_iter()
             .filter(|m| members.is_empty() || members.iter().any(|member| member.name == m.name))
@@ -74,12 +244,10 @@ impl Builder {
 
         debug!("Build order: {:?}", filtered.iter().map(|m| &m.name).collect::<Vec<_>>());
 
-        // Build each member
         for member in filtered {
             self.build_member(member)?;
         }
 
-        // Save cache
         debug!("Saving build cache");
         self.cache.lock().unwrap().save()?;
 

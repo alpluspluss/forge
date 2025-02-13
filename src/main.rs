@@ -89,6 +89,24 @@ enum Forge {
 
         #[structopt(name = "args", last = true)]
         args: Vec<String>,
+    },
+
+    #[structopt(name = "test", about = "Run project tests")]
+    Test {
+        #[structopt(long, parse(from_os_str), help = "Path to workspace or project")]
+        path: Option<PathBuf>,
+
+        #[structopt(long, help = "Specific workspace member to test")]
+        member: Option<String>,
+
+        #[structopt(long = "release", help = "Test with release profile")]
+        release: bool,
+
+        #[structopt(long = "profile", help = "Build profile (debug/release)")]
+        profile: Option<String>,
+
+        #[structopt(name = "args", last = true)]
+        args: Vec<String>,
     }
 }
 
@@ -244,7 +262,6 @@ fn run_project(
         profile
     };
 
-    // First build the project
     let workspace = Workspace::new(&path)?;
     let builder = Builder::new(
         workspace.clone(),
@@ -257,10 +274,8 @@ fn run_project(
     let members = if let Some(member_name) = member {
         workspace.filter_members(&[member_name])
     } else if !workspace.root_config.build.target.is_empty() {
-        // If root has a target, run it by default
         workspace.filter_members(&["root".to_string()])
     } else if workspace.members.len() == 1 {
-        // If no root target but only one member, run that
         workspace.filter_members(&[])
     } else {
         return Err(ForgeError::Workspace(
@@ -287,6 +302,73 @@ fn run_project(
         )));
     }
 
+    Ok(())
+}
+
+fn run_tests(
+    path: Option<PathBuf>,
+    member: Option<String>,
+    args: Vec<String>,
+    profile: Option<String>,
+    release: bool,
+) -> ForgeResult<()> {
+    let path = path.unwrap_or_else(|| std::env::current_dir().unwrap());
+    let profile = if release {
+        Some("release".to_string())
+    } else {
+        profile
+    };
+
+    let workspace = Workspace::new(&path)?;
+    let member = {
+        let members = if let Some(member_name) = member {
+            workspace.filter_members(&[member_name])
+        } else if !workspace.root_config.build.target.is_empty() {
+            workspace.filter_members(&["root".to_string()])
+        } else if workspace.members.len() == 1 {
+            workspace.filter_members(&[])
+        } else {
+            return Err(ForgeError::Workspace(
+                "Multiple workspace members found. Please specify which one to test using --member".to_string()
+            ));
+        };
+
+        if members.is_empty() {
+            return Err(ForgeError::Workspace("No matching workspace member found".to_string()));
+        }
+
+        members[0].clone()
+    };
+
+    let test_config = member.config.testing.as_ref()
+        .ok_or_else(|| ForgeError::Config("No test configuration found".to_string()))?;
+
+    let builder = Builder::new(
+        workspace,
+        None,
+        None,
+        None,
+        profile.as_deref(),
+    );
+
+    builder.build_tests(&member, test_config)?;
+
+    let test_binary = &member.get_target_path();
+    println!("Running tests...");
+
+    let status = std::process::Command::new(test_binary)
+        .args(args)
+        .status()
+        .map_err(|e| ForgeError::Build(format!("Failed to execute tests: {}", e)))?;
+
+    if !status.success() {
+        return Err(ForgeError::Build(format!(
+            "Tests failed with code {}",
+            status.code().unwrap_or(-1)
+        )));
+    }
+
+    println!("All tests passed!");
     Ok(())
 }
 
@@ -382,6 +464,13 @@ fn main() {
                 eprintln!("Run failed: {}", e);
                 std::process::exit(1);
             }
-        },
+        }
+
+        Forge::Test { path, member, args, profile, release } => {
+            if let Err(e) = run_tests(path, member, args, profile, release) {
+                eprintln!("Test failed: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
 }
