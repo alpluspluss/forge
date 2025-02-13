@@ -80,13 +80,21 @@ jobs:
             sha256sum ${{ matrix.artifact_name }} > ${{ matrix.asset_name }}.sha256
           fi
 
+      - name: Create ZIP
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          mkdir -p package
+          cp ${{ matrix.artifact_name }} package/${{ matrix.asset_name }}
+          cp ${{ matrix.asset_name }}.sha256 package/
+          cd package
+          zip -r ../${{ matrix.asset_name }}.zip ./*
+
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: |
-            target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-            target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
+          path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
 
   create_release:
     name: Create GitHub Release
@@ -121,12 +129,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            forge-linux-aarch64/forge => forge-linux-aarch64
-            forge-linux-x86_64/forge => forge-linux-x86_64
-            forge-macos-arm64/forge => forge-macos-arm64 
-            forge-macos-x86_64/forge => forge-macos-x86_64
-            forge-windows-x86_64.exe/forge.exe => forge-windows-x86_64.exe
-            **/*.sha256
+            **/*.zip
           tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
