@@ -85,7 +85,7 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}
           path: |
-            target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+            target/${{ matrix.target }}/release/${{ matrix.artifact_name }} => ${{ matrix.asset_name }}
             target/${{ matrix.target }}/release/${{ matrix.asset_name }}.sha256
 
   create_release:
@@ -121,8 +121,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            forge-*/forge*
-            forge-*/*.sha256
+            forge-linux-x86_64/forge-linux-x86_64
+            forge-linux-aarch64/forge-linux-aarch64
+            forge-windows-x86_64.exe/forge-windows-x86_64.exe
+            forge-macos-x86_64/forge-macos-x86_64
+            forge-macos-arm64/forge-macos-arm64
+            */*.sha256
           tag_name: ${{ steps.version.outputs.version }}
 
   cleanup:
